@@ -1,0 +1,31 @@
+name: CI
+
+on:
+  workflow_dispatch:
+  pull_request:
+    branches:
+      - master
+      # Add LTS branches for hotfixes
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: 'stable'
+      - name: Install dependencies
+        run: go get .
+      - name: Build
+        run: CGO_ENABLED=0 go build -v .
+      - name: Test
+        run: go test -coverpkg ./... -coverprofile test.cov ./...
+      - name: Package
+        env:
+          FFMPEG_VERSION: ${{ vars.FFMPEG_VERSION }}
+        run: |
+          docker build . --build-arg FFMPEG_VERSION -t ci
+          docker run --rm ci

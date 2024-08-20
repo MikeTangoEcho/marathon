@@ -1,0 +1,57 @@
+name: Release
+
+on:
+  push:
+    branches:
+      - master
+    # Add LTS branches for hotfixes
+
+jobs:
+  release-please:
+    runs-on: ubuntu-latest
+    # https://github.com/googleapis/release-please-action?tab=readme-ov-file#workflow-permissions
+    # Allow GitHub Actions to create and approve pull requests = enabled on UI
+    permissions:
+      contents: write
+      pull-requests: write
+    outputs:
+      releases_created: ${{ steps.release-please.outputs.releases_created }}
+      prs_created: ${{ steps.release-please.outputs.prs_created }}
+    steps:
+      - uses: googleapis/release-please-action@v4
+        id: release-please
+        with:
+          release-type: go
+          target-branch: ${{ github.ref_name }}
+
+  goreleaser:
+    runs-on: ubuntu-latest
+    needs: [release-please]
+    if: ${{ needs.release-please.outputs.releases_created == 'true' }}
+    permissions:
+      contents: write
+      packages: write
+      # issues: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: stable
+      - name: Login to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Run GoReleaser
+        uses: goreleaser/goreleaser-action@v6
+        with:
+          version: "~> v2"
+          args: release --clean
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          FFMPEG_VERSION: ${{ vars.FFMPEG_VERSION }}
